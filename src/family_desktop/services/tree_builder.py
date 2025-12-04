@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from html import escape
 
 from graphviz import Digraph
@@ -74,7 +74,44 @@ def _marriage_label(marriage: Marriage, lineage_people: set[int]) -> str:
     )
 
 
-def build_tree_image(filename: str = "family_tree") -> str:
+def _collect_descendant_scope(
+    root_marriage_id: int,
+    marriages: list[Marriage],
+) -> tuple[set[int], set[int]]:
+    marriages_by_id: dict[int, Marriage] = {marriage.id: marriage for marriage in marriages}
+    if root_marriage_id not in marriages_by_id:
+        raise ValueError("Pernikahan tidak ditemukan")
+
+    marriages_by_person: defaultdict[int, list[int]] = defaultdict(list)
+    for marriage in marriages:
+        if marriage.husband_id:
+            marriages_by_person[marriage.husband_id].append(marriage.id)
+        if marriage.wife_id:
+            marriages_by_person[marriage.wife_id].append(marriage.id)
+
+    selected_marriages: set[int] = set()
+    selected_people: set[int] = set()
+    queue: deque[int] = deque([root_marriage_id])
+    while queue:
+        current_id = queue.popleft()
+        if current_id in selected_marriages:
+            continue
+        marriage = marriages_by_id.get(current_id)
+        if not marriage:
+            continue
+        selected_marriages.add(current_id)
+        for spouse_id in (marriage.husband_id, marriage.wife_id):
+            if spouse_id:
+                selected_people.add(spouse_id)
+        for child_link in marriage.children:
+            selected_people.add(child_link.child_id)
+            for related_marriage in marriages_by_person.get(child_link.child_id, []):
+                if related_marriage not in selected_marriages:
+                    queue.append(related_marriage)
+    return selected_marriages, selected_people
+
+
+def build_tree_image(filename: str = "family_tree", root_marriage_id: int | None = None) -> str:
     output_path = settings.assets_dir / filename
     graph = Digraph("FamilyTree", engine=settings.graphviz_engine, format="png")
     graph.attr(rankdir="TB", nodesep="0.6", ranksep="0.9", splines="curved")
@@ -90,6 +127,11 @@ def build_tree_image(filename: str = "family_tree") -> str:
                 selectinload(Marriage.children).selectinload(ChildLink.child),
             )
         ).all()
+
+    if root_marriage_id:
+        selected_marriages, selected_people = _collect_descendant_scope(root_marriage_id, marriages)
+        marriages = [marriage for marriage in marriages if marriage.id in selected_marriages]
+        people = [person for person in people if person.id in selected_people]
 
     lineage_people = {
         child_link.child_id for marriage in marriages for child_link in marriage.children

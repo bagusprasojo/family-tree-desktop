@@ -307,12 +307,15 @@ class MainFrame(ttk.Frame):
             values.append(f"{marriage['id']} - {husband} & {wife}")
         self.marriage_selector["values"] = values
         self.child_combo["values"] = [f"{p['id']} - {p['name']}" for p in self.people_cache]
+        if hasattr(self, "diagram_marriage_combo"):
+            self.diagram_marriage_combo["values"] = values
+            if values:
+                self.diagram_marriage_combo.set(values[0])
+            else:
+                self.diagram_marriage_combo.set("")
 
     def _current_marriage_id(self) -> int | None:
-        text = self.marriage_selector.get()
-        if not text:
-            return None
-        return int(text.split(" - ", 1)[0])
+        return self._extract_marriage_id(self.marriage_selector.get())
 
     def _refresh_children_view(self):
         self.children_tree.delete(*self.children_tree.get_children())
@@ -349,15 +352,41 @@ class MainFrame(ttk.Frame):
     # region Diagram Tab
     def _build_diagram_tab(self):
         frame = self.diagram_tab
-        ttk.Button(frame, text="Bangun Diagram", command=self._render_diagram).pack(pady=5)
-        self.diagram_label = ttk.Label(frame)
-        self.diagram_label.pack(fill="both", expand=True)
+        control_frame = ttk.Frame(frame)
+        control_frame.pack(pady=10)
+        self.diagram_control_frame = control_frame
+        ttk.Label(control_frame, text="Pilih Pernikahan").pack(side="left", padx=5)
+        self.diagram_marriage_combo = ttk.Combobox(control_frame, state="readonly", width=35)
+        self.diagram_marriage_combo.pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Bangun Diagram", command=self._render_diagram).pack(side="left", padx=5)
+
+        image_frame = ttk.Frame(frame)
+        image_frame.pack(fill="both", expand=True)
+        self.diagram_image_frame = image_frame
+        self.diagram_label = ttk.Label(image_frame, anchor="center")
+        self.diagram_label.pack(expand=True)
 
     def _render_diagram(self):
+        marriage_id = self._extract_marriage_id(self.diagram_marriage_combo.get())
+        if not marriage_id:
+            messagebox.showwarning("Diagram", "Pilih pernikahan terlebih dahulu")
+            return
         try:
-            image_path = tree_builder.build_tree_image()
+            image_path = tree_builder.build_tree_image(
+                filename=f"family_tree_{marriage_id}", root_marriage_id=marriage_id
+            )
             img = Image.open(image_path)
-            img.thumbnail((800, 600))
+            self.update_idletasks()
+            available_width = max(self.diagram_image_frame.winfo_width() - 20, 200)
+            available_height = max(self.diagram_image_frame.winfo_height() - 20, 200)
+
+            if available_width > 0 and available_height > 0:
+                scale = min(available_width / img.width, available_height / img.height)
+                scale = max(scale, 0.1)
+                new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
+                if new_size != img.size:
+                    img = img.resize(new_size, Image.LANCZOS)
+
             self._tree_image = ImageTk.PhotoImage(img)
             self.diagram_label.configure(image=self._tree_image)
             messagebox.showinfo("Diagram", f"Diagram tersimpan di {image_path}")
@@ -472,6 +501,14 @@ class MainFrame(ttk.Frame):
             return None
         try:
             return int(label.split("#")[-1].strip(")"))
+        except ValueError:
+            return None
+
+    def _extract_marriage_id(self, label: str) -> int | None:
+        if not label or " - " not in label:
+            return None
+        try:
+            return int(label.split(" - ", 1)[0])
         except ValueError:
             return None
 
