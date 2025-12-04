@@ -209,14 +209,23 @@ class MainFrame(ttk.Frame):
     def _build_marriage_tab(self):
         frame = self.marriage_tab
         frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(1, weight=1)
+        search_frame = ttk.Frame(frame)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5), padx=(0, 10))
+        search_frame.columnconfigure(1, weight=1)
+        ttk.Label(search_frame, text="Cari Nama").grid(row=0, column=0, sticky="w")
+        self.marriage_search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=self.marriage_search_var)
+        search_entry.grid(row=0, column=1, sticky="ew", padx=(5, 0))
+        self.marriage_search_var.trace_add("write", lambda *_: self._apply_marriage_filter())
         columns = ("husband", "wife", "date")
         self.marriage_tree = ttk.Treeview(frame, columns=columns, show="headings", height=10)
         for col in columns:
             self.marriage_tree.heading(col, text=col.title())
-        self.marriage_tree.grid(row=0, column=0, rowspan=6, sticky="nsew", padx=(0, 10))
+        self.marriage_tree.grid(row=1, column=0, sticky="nsew", padx=(0, 10))
         self.marriage_tree.bind("<<TreeviewSelect>>", lambda _: self._fill_marriage_form())
         form = ttk.Frame(frame)
-        form.grid(row=0, column=1, sticky="nsew")
+        form.grid(row=1, column=1, sticky="nsew")
         form.columnconfigure(0, weight=1)
         self.marriage_form = {
             "id": tk.IntVar(value=0),
@@ -243,8 +252,27 @@ class MainFrame(ttk.Frame):
 
     def refresh_marriages(self):
         self.marriage_cache = marriages.list_marriages()
+        self._apply_marriage_filter()
+        names = [f"{p['name']} (#{p['id']})" for p in self.people_cache]
+        self.husband_combo["values"] = names
+        self.wife_combo["values"] = names
+        self._refresh_marriage_selector()
+
+    def _apply_marriage_filter(self):
+        if not hasattr(self, "marriage_tree"):
+            return
+        term = getattr(self, "marriage_search_var", None)
+        query = (term.get() if term else "").strip().lower()
+        rows = self.marriage_cache
+        if query:
+            rows = [
+                marriage
+                for marriage in rows
+                if query in ((marriage.get("husband") or {}).get("name") or "").lower()
+                or query in ((marriage.get("wife") or {}).get("name") or "").lower()
+            ]
         self.marriage_tree.delete(*self.marriage_tree.get_children())
-        for marriage in self.marriage_cache:
+        for marriage in rows:
             self.marriage_tree.insert(
                 "",
                 "end",
@@ -255,10 +283,6 @@ class MainFrame(ttk.Frame):
                     marriage.get("marriage_date"),
                 ),
             )
-        names = [f"{p['name']} (#{p['id']})" for p in self.people_cache]
-        self.husband_combo["values"] = names
-        self.wife_combo["values"] = names
-        self._refresh_marriage_selector()
 
     def _fill_marriage_form(self):
         selection = self.marriage_tree.selection()
