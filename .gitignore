@@ -1,0 +1,39 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Environment & secrets files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Tooling / IDE
+.vscode/
+.idea/
+*.iml
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Project-specific generated assets
+exports/
+generated/
+reports/
