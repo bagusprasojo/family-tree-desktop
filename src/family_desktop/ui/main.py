@@ -15,6 +15,9 @@ class MainFrame(ttk.Frame):
         self.people_cache: list[dict] = []
         self.marriage_cache: list[dict] = []
         self._tree_image = None
+        self._diagram_base_image: Image.Image | None = None
+        self._diagram_zoom: float = 1.0
+        self._diagram_canvas_image: int | None = None
         self._build_header()
         self._build_tabs()
         self._refresh_all()
@@ -61,17 +64,25 @@ class MainFrame(ttk.Frame):
     def _build_people_tab(self):
         frame = self.people_tab
         frame.columnconfigure(1, weight=1)
+        search_frame = ttk.Frame(frame)
+        search_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 5))
+        ttk.Label(search_frame, text="Cari Nama").pack(side="left")
+        self.people_search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=self.people_search_var)
+        search_entry.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        self.people_search_var.trace_add("write", lambda *_: self._apply_people_filter())
+
         columns = ("name", "gender", "birth", "death")
         self.people_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
-        self.people_tree.grid(row=0, column=0, rowspan=6, sticky="nsew", padx=(0, 10))
+        self.people_tree.grid(row=1, column=0, rowspan=6, sticky="nsew", padx=(0, 10))
         for col in columns:
             self.people_tree.heading(col, text=col.title())
         self.people_tree.bind("<<TreeviewSelect>>", lambda _: self._fill_person_form())
         scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.people_tree.yview)
         self.people_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.grid(row=0, column=0, rowspan=6, sticky="nse")
+        scrollbar.grid(row=1, column=0, rowspan=6, sticky="nse")
         form = ttk.Frame(frame)
-        form.grid(row=0, column=1, sticky="nsew")
+        form.grid(row=1, column=1, sticky="nsew")
         form.columnconfigure(0, weight=1)
         self.person_form_vars = {
             "id": tk.IntVar(value=0),
@@ -104,8 +115,18 @@ class MainFrame(ttk.Frame):
 
     def refresh_people(self):
         self.people_cache = people.list_people()
+        self._apply_people_filter()
+
+    def _apply_people_filter(self):
+        if not hasattr(self, "people_tree"):
+            return
+        term = getattr(self, "people_search_var", None)
+        query = (term.get() if term else "").strip().lower()
+        rows = self.people_cache
+        if query:
+            rows = [person for person in rows if query in (person["name"] or "").lower()]
         self.people_tree.delete(*self.people_tree.get_children())
-        for person in self.people_cache:
+        for person in rows:
             self.people_tree.insert(
                 "",
                 "end",
@@ -359,12 +380,21 @@ class MainFrame(ttk.Frame):
         self.diagram_marriage_combo = ttk.Combobox(control_frame, state="readonly", width=35)
         self.diagram_marriage_combo.pack(side="left", padx=5)
         ttk.Button(control_frame, text="Bangun Diagram", command=self._render_diagram).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Zoom In", command=lambda: self._zoom_diagram(1.2)).pack(
+            side="left", padx=(15, 5)
+        )
+        ttk.Button(control_frame, text="Zoom Out", command=lambda: self._zoom_diagram(1 / 1.2)).pack(
+            side="left", padx=5
+        )
 
         image_frame = ttk.Frame(frame)
         image_frame.pack(fill="both", expand=True)
         self.diagram_image_frame = image_frame
-        self.diagram_label = ttk.Label(image_frame, anchor="center")
-        self.diagram_label.pack(expand=True)
+        self.diagram_canvas = tk.Canvas(image_frame, background="white", highlightthickness=0)
+        self.diagram_canvas.pack(fill="both", expand=True)
+        self.diagram_canvas.bind("<ButtonPress-1>", self._start_canvas_drag)
+        self.diagram_canvas.bind("<B1-Motion>", self._drag_canvas)
+        self.diagram_canvas.bind("<Configure>", lambda _: self._display_diagram_image())
 
     def _render_diagram(self):
         marriage_id = self._extract_marriage_id(self.diagram_marriage_combo.get())
@@ -375,23 +405,68 @@ class MainFrame(ttk.Frame):
             image_path = tree_builder.build_tree_image(
                 filename=f"family_tree_{marriage_id}", root_marriage_id=marriage_id
             )
-            img = Image.open(image_path)
-            self.update_idletasks()
-            available_width = max(self.diagram_image_frame.winfo_width() - 20, 200)
-            available_height = max(self.diagram_image_frame.winfo_height() - 20, 200)
-
-            if available_width > 0 and available_height > 0:
-                scale = min(available_width / img.width, available_height / img.height)
-                scale = max(scale, 0.1)
-                new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
-                if new_size != img.size:
-                    img = img.resize(new_size, Image.LANCZOS)
-
-            self._tree_image = ImageTk.PhotoImage(img)
-            self.diagram_label.configure(image=self._tree_image)
+            self._diagram_base_image = Image.open(image_path)
+            self._set_diagram_zoom_to_fit()
+            self._display_diagram_image()
             messagebox.showinfo("Diagram", f"Diagram tersimpan di {image_path}")
         except Exception as exc:
             messagebox.showerror("Diagram", f"Gagal membangun diagram: {exc}")
+
+    def _set_diagram_zoom_to_fit(self):
+        if not self._diagram_base_image:
+            return
+        self.update_idletasks()
+        canvas_width = max(self.diagram_canvas.winfo_width(), 1)
+        canvas_height = max(self.diagram_canvas.winfo_height(), 1)
+        base_width = max(self._diagram_base_image.width, 1)
+        base_height = max(self._diagram_base_image.height, 1)
+        scale = min(canvas_width / base_width, canvas_height / base_height)
+        self._diagram_zoom = max(scale, 0.1)
+
+    def _display_diagram_image(self):
+        if not self._diagram_base_image:
+            return
+        base = self._diagram_base_image
+        target_width = max(1, int(base.width * self._diagram_zoom))
+        target_height = max(1, int(base.height * self._diagram_zoom))
+        if target_width == base.width and target_height == base.height:
+            img = base
+        else:
+            img = base.resize((target_width, target_height), Image.LANCZOS)
+
+        self._tree_image = ImageTk.PhotoImage(img)
+        canvas_width = max(self.diagram_canvas.winfo_width(), 1)
+        canvas_height = max(self.diagram_canvas.winfo_height(), 1)
+        display_width = max(target_width, canvas_width)
+        display_height = max(target_height, canvas_height)
+        offset_x = (display_width - target_width) / 2
+        offset_y = (display_height - target_height) / 2
+        self.diagram_canvas.configure(scrollregion=(0, 0, display_width, display_height))
+        if self._diagram_canvas_image is None:
+            self._diagram_canvas_image = self.diagram_canvas.create_image(
+                offset_x,
+                offset_y,
+                anchor="nw",
+                image=self._tree_image,
+            )
+        else:
+            self.diagram_canvas.coords(self._diagram_canvas_image, offset_x, offset_y)
+            self.diagram_canvas.itemconfigure(self._diagram_canvas_image, image=self._tree_image)
+
+    def _zoom_diagram(self, factor: float):
+        if not self._diagram_base_image:
+            return
+        new_zoom = self._diagram_zoom * factor
+        self._diagram_zoom = min(max(new_zoom, 0.1), 5.0)
+        self._display_diagram_image()
+
+    def _start_canvas_drag(self, event):
+        if hasattr(self, "diagram_canvas"):
+            self.diagram_canvas.scan_mark(event.x, event.y)
+
+    def _drag_canvas(self, event):
+        if hasattr(self, "diagram_canvas"):
+            self.diagram_canvas.scan_dragto(event.x, event.y, gain=1)
 
     # endregion
     # region Reports Tab
