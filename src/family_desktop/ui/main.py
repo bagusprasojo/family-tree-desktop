@@ -63,27 +63,37 @@ class MainFrame(ttk.Frame):
     # region People Tab
     def _build_people_tab(self):
         frame = self.people_tab
+        frame.columnconfigure(0, weight=4)
         frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(1, weight=1)
         search_frame = ttk.Frame(frame)
-        search_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 5))
-        ttk.Label(search_frame, text="Cari Nama").pack(side="left")
+        search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5), padx=(0, 20))
+        search_frame.columnconfigure(1, weight=1)
+        ttk.Label(search_frame, text="Cari Nama").grid(row=0, column=0, sticky="w")
         self.people_search_var = tk.StringVar()
         search_entry = ttk.Entry(search_frame, textvariable=self.people_search_var)
-        search_entry.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        search_entry.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         self.people_search_var.trace_add("write", lambda *_: self._apply_people_filter())
 
         columns = ("name", "gender", "birth", "death")
-        self.people_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
-        self.people_tree.grid(row=1, column=0, rowspan=6, sticky="nsew", padx=(0, 10))
+        tree_container = ttk.Frame(frame)
+        tree_container.grid(row=1, column=0, sticky="nsew", padx=(0, 20), pady=(0, 5))
+        tree_container.columnconfigure(0, weight=1)
+        tree_container.rowconfigure(0, weight=1)
+        self.people_tree = ttk.Treeview(tree_container, columns=columns, show="headings", height=18)
+        self.people_tree.grid(row=0, column=0, sticky="nsew")
         for col in columns:
             self.people_tree.heading(col, text=col.title())
         self.people_tree.bind("<<TreeviewSelect>>", lambda _: self._fill_person_form())
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.people_tree.yview)
-        self.people_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.grid(row=1, column=0, rowspan=6, sticky="nse")
+        y_scrollbar = ttk.Scrollbar(tree_container, orient="vertical", command=self.people_tree.yview)
+        x_scrollbar = ttk.Scrollbar(tree_container, orient="horizontal", command=self.people_tree.xview)
+        self.people_tree.configure(yscrollcommand=y_scrollbar.set, xscrollcommand=x_scrollbar.set)
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew", columnspan=2)
         form = ttk.Frame(frame)
         form.grid(row=1, column=1, sticky="nsew")
         form.columnconfigure(0, weight=1)
+        form.grid_columnconfigure(1, weight=1)
         self.person_form_vars = {
             "id": tk.IntVar(value=0),
             "name": tk.StringVar(),
@@ -92,21 +102,21 @@ class MainFrame(ttk.Frame):
             "death": tk.StringVar(),
         }
         ttk.Label(form, text="Nama").grid(row=0, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["name"]).grid(row=1, column=0, sticky="ew")
+        ttk.Entry(form, textvariable=self.person_form_vars["name"], width=20).grid(row=1, column=0, sticky="w")
         ttk.Label(form, text="Gender").grid(row=2, column=0, sticky="w")
         ttk.Combobox(
             form,
             textvariable=self.person_form_vars["gender"],
             values=("male", "female"),
             state="readonly",
-        ).grid(row=3, column=0, sticky="ew")
+        ).grid(row=3, column=0, sticky="w")
         ttk.Label(form, text="Tanggal Lahir (YYYY-MM-DD)").grid(row=4, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["birth"]).grid(row=5, column=0, sticky="ew")
+        ttk.Entry(form, textvariable=self.person_form_vars["birth"], width=20).grid(row=5, column=0, sticky="w")
         ttk.Label(form, text="Tanggal Wafat").grid(row=6, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["death"]).grid(row=7, column=0, sticky="ew")
+        ttk.Entry(form, textvariable=self.person_form_vars["death"], width=20).grid(row=7, column=0, sticky="w")
         ttk.Label(form, text="Catatan").grid(row=8, column=0, sticky="w")
-        self.person_notes = tk.Text(form, height=5)
-        self.person_notes.grid(row=9, column=0, sticky="ew", pady=(0, 10))
+        self.person_notes = tk.Text(form, height=5, width=25)
+        self.person_notes.grid(row=9, column=0, sticky="w", pady=(0, 10))
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=10, column=0, sticky="ew")
         ttk.Button(btn_frame, text="Baru", command=self._reset_person_form).pack(side="left")
@@ -173,6 +183,7 @@ class MainFrame(ttk.Frame):
             else:
                 people.create_person(payload)
             messagebox.showinfo("Data Orang", "Data tersimpan")
+            self._reset_person_form()
             self.refresh_people()
             self.refresh_marriages()
         except Exception as exc:
