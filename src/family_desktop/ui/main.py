@@ -102,20 +102,21 @@ class MainFrame(ttk.Frame):
             "death": tk.StringVar(),
         }
         ttk.Label(form, text="Nama").grid(row=0, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["name"], width=20).grid(row=1, column=0, sticky="w")
+        ttk.Entry(form, textvariable=self.person_form_vars["name"], width=40).grid(row=1, column=0, sticky="w")
         ttk.Label(form, text="Gender").grid(row=2, column=0, sticky="w")
         ttk.Combobox(
             form,
             textvariable=self.person_form_vars["gender"],
             values=("male", "female"),
             state="readonly",
+            width=40,
         ).grid(row=3, column=0, sticky="w")
         ttk.Label(form, text="Tanggal Lahir (YYYY-MM-DD)").grid(row=4, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["birth"], width=20).grid(row=5, column=0, sticky="w")
+        ttk.Entry(form, textvariable=self.person_form_vars["birth"], width=40).grid(row=5, column=0, sticky="w")
         ttk.Label(form, text="Tanggal Wafat").grid(row=6, column=0, sticky="w")
-        ttk.Entry(form, textvariable=self.person_form_vars["death"], width=20).grid(row=7, column=0, sticky="w")
+        ttk.Entry(form, textvariable=self.person_form_vars["death"], width=40).grid(row=7, column=0, sticky="w")
         ttk.Label(form, text="Catatan").grid(row=8, column=0, sticky="w")
-        self.person_notes = tk.Text(form, height=5, width=25)
+        self.person_notes = tk.Text(form, height=5, width=40)
         self.person_notes.grid(row=9, column=0, sticky="w", pady=(0, 10))
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=10, column=0, sticky="ew")
