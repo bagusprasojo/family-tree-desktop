@@ -14,10 +14,7 @@ load_dotenv()
 class Settings:
     """Application level configuration loaded from environment variables."""
 
-    database_url: str = os.getenv(
-        "FAMILY_DB_URL",
-        "mysql+pymysql://root:root@localhost/family_tree",
-    )
+    database_url: str = os.getenv("FAMILY_DB_URL", "sqlite:///family_tree.db")
     graphviz_engine: str = os.getenv("GRAPHVIZ_ENGINE", "dot")
     assets_dir: Path = Path(os.getenv("FAMILY_ASSETS_DIR", "generated"))
     report_dir: Path = Path(os.getenv("FAMILY_REPORT_DIR", "reports"))
@@ -31,4 +28,3 @@ class Settings:
 settings = Settings()
 for folder in (settings.assets_dir, settings.report_dir, settings.export_dir):
     folder.mkdir(parents=True, exist_ok=True)
-

@@ -1,6 +1,6 @@
 # Family Tree Desktop
 
-A Tkinter-based desktop application for managing extended family data, visualising genealogy graphs, generating PDF/CSV reports, and running mahram lookup backed by a MySQL (or SQLite for development) database.
+A Tkinter-based desktop application for managing extended family data, visualising genealogy graphs, generating PDF/CSV reports, and running mahram lookup backed by a local SQLite database file.
 
 ## Fitur Utama
 - CRUD data orang lengkap dengan catatan dan tanggal kehidupan.
@@ -12,8 +12,7 @@ A Tkinter-based desktop application for managing extended family data, visualisi
 
 ## Prasyarat
 - Python 3.10+
-- MySQL server aktif dan database kosong (mis. `family_tree`).
-- Graphviz binary sudah terpasang di PATH.
+- Graphviz binary sudah terpasang di PATH (untuk generasi diagram).
 
 ## Instalasi
 ```bash
@@ -22,9 +21,9 @@ source env/Scripts/activate            # cmd: env\Scripts\activate
 pip install -e .
 ```
 
-Salin `.env.example` menjadi `.env`, lalu sesuaikan kredensial database:
+Salin `.env.example` menjadi `.env`, lalu sesuaikan lokasi file database jika perlu:
 ```ini
-FAMILY_DB_URL=mysql+pymysql://user:pass@localhost/family_tree
+FAMILY_DB_URL=sqlite:///family_tree.db
 ```
 
 ## Menjalankan Aplikasi
