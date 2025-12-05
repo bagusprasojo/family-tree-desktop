@@ -253,9 +253,8 @@ class MainFrame(ttk.Frame):
     def refresh_marriages(self):
         self.marriage_cache = marriages.list_marriages()
         self._apply_marriage_filter()
-        names = [f"{p['name']} (#{p['id']})" for p in self.people_cache]
-        self.husband_combo["values"] = names
-        self.wife_combo["values"] = names
+        self.husband_combo["values"] = self._people_labels_by_gender("male")
+        self.wife_combo["values"] = self._people_labels_by_gender("female")
         self._refresh_marriage_selector()
 
     def _apply_marriage_filter(self):
@@ -607,6 +606,26 @@ class MainFrame(ttk.Frame):
             messagebox.showerror("User", str(exc))
 
     # endregion
+    def _people_labels_by_gender(self, gender: str) -> list[str]:
+        target = (gender or "").strip().lower()
+        male_aliases = {"male", "m", "lakilaki", "laki", "pria"}
+        female_aliases = {"female", "f", "perempuan", "wanita"}
+
+        def normalize(value: str | None) -> str:
+            if not value:
+                return ""
+            return value.strip().lower().replace("-", "").replace(" ", "")
+
+        def matches(person_gender: str | None) -> bool:
+            norm = normalize(person_gender)
+            if target == "male":
+                return norm in male_aliases
+            if target == "female":
+                return norm in female_aliases
+            return True
+
+        return [f"{p['name']} (#{p['id']})" for p in self.people_cache if matches(p.get("gender"))]
+
     def _extract_person_id(self, label: str) -> int | None:
         if not label or "#" not in label:
             return None
