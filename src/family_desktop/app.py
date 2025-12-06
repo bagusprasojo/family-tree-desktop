@@ -3,11 +3,11 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from .database import init_db
-from .services.people import ensure_people
-from .services.users import ensure_default_admin
-from .ui.login import LoginFrame
-from .ui.main import MainFrame
+from family_desktop.database import init_db
+from family_desktop.services.people import ensure_people
+from family_desktop.services.users import ensure_default_admin
+from family_desktop.ui.login import LoginFrame
+from family_desktop.ui.main import MainFrame
 
 SAMPLE_PEOPLE = [
     {"name": "Ahmad", "gender": "male", "birth_date": "1960-01-01"},
@@ -50,4 +50,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

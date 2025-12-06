@@ -56,3 +56,10 @@ python -m family_desktop.app
 - Integrasi Graphviz interaktif atau export SVG.
 - Menambahkan fitur import CSV massal.
 "# family-tree-desktop" 
+
+## Build Aplikasi ke EXE
+Aktifkan virtualenv dulu (env\Scripts\activate bila pakai Windows), pastikan dependensi sudah terpasang.
+
+Jalankan pyinstaller FamilyDesktop.spec dari folder proyek. File FamilyDesktop.spec sudah menyiapkan entrypoint src/family_desktop/app.py beserta folder data generated, reports, dan exports.
+
+Setelah selesai, executable akan tersedia di dist/FamilyDesktop/FamilyDesktop.exe; gunakan folder tersebut untuk distribusi karena berisi semua dependensi runtime.

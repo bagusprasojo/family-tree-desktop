@@ -5,12 +5,12 @@ from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..database import get_session
-from ..models import Marriage, Person
+from ..models import ChildLink, Marriage, Person
 
 
 def _person_lines(person: Person) -> list[str]:
@@ -74,17 +74,90 @@ def generate_person_pdf(person_id: int, filename: str | None = None) -> str:
         person = session.get(Person, person_id)
         if not person:
             raise ValueError("Person not found")
+        parent_links = session.scalars(
+            select(ChildLink)
+            .where(ChildLink.child_id == person.id)
+            .options(
+                selectinload(ChildLink.marriage).selectinload(Marriage.husband),
+                selectinload(ChildLink.marriage).selectinload(Marriage.wife),
+                selectinload(ChildLink.marriage)
+                .selectinload(Marriage.children)
+                .selectinload(ChildLink.child),
+            )
+        ).all()
+        parents: list[str] = []
+        parent_ids: set[int] = set()
+        siblings: list[str] = []
+        sibling_ids: set[int] = set()
+        for link in parent_links:
+            marriage = link.marriage
+            if not marriage:
+                continue
+            for relative in (marriage.husband, marriage.wife):
+                if relative and relative.id not in parent_ids:
+                    parents.append(relative.name)
+                    parent_ids.add(relative.id)
+            for sibling_link in marriage.children:
+                sibling = sibling_link.child
+                if sibling and sibling.id != person.id and sibling.id not in sibling_ids:
+                    siblings.append(sibling.name)
+                    sibling_ids.add(sibling.id)
+        spouse_marriages = session.scalars(
+            select(Marriage)
+            .where(or_(Marriage.husband_id == person.id, Marriage.wife_id == person.id))
+            .options(
+                selectinload(Marriage.husband),
+                selectinload(Marriage.wife),
+                selectinload(Marriage.children).selectinload(ChildLink.child),
+            )
+        ).all()
+        spouses: list[str] = []
+        spouse_ids: set[int] = set()
+        children: list[str] = []
+        child_ids: set[int] = set()
+        for marriage in spouse_marriages:
+            partner = marriage.wife if marriage.husband_id == person.id else marriage.husband
+            if partner and partner.id not in spouse_ids:
+                spouses.append(partner.name)
+                spouse_ids.add(partner.id)
+            for child_link in marriage.children:
+                child = child_link.child
+                if child and child.id != person.id and child.id not in child_ids:
+                    children.append(child.name)
+                    child_ids.add(child.id)
     filename = filename or f"{person.name.replace(' ', '_')}.pdf"
     path = settings.report_dir / filename
     pdf = canvas.Canvas(str(path), pagesize=A4)
     width, height = A4
     pdf.setFont("Helvetica-Bold", 16)
     pdf.drawString(50, height - 50, f"Profil {person.name}")
-    pdf.setFont("Helvetica", 12)
     y = height - 100
-    for line in _person_lines(person):
-        pdf.drawString(50, y, line)
-        y -= 20
+
+    def write_lines(lines: list[str], font: str = "Helvetica", size: int = 12, leading: int = 20, indent: int = 50):
+        nonlocal y
+        if not lines:
+            return
+        pdf.setFont(font, size)
+        for line in lines:
+            if y < 60:
+                pdf.showPage()
+                y = height - 50
+                pdf.setFont(font, size)
+            pdf.drawString(indent, y, line)
+            y -= leading
+
+    def write_section(title: str, rows: list[str]):
+        nonlocal y
+        write_lines([title], font="Helvetica-Bold", size=12, leading=18)
+        content = rows if rows else ["-"]
+        write_lines([f"- {value}" for value in content], font="Helvetica", size=11, leading=16, indent=60)
+        y -= 4
+
+    write_lines(_person_lines(person))
+    write_section("Orang Tua", parents)
+    write_section("Saudara Kandung", siblings)
+    write_section("Pasangan", spouses)
+    write_section("Anak", children)
     pdf.save()
     return str(path)
 
