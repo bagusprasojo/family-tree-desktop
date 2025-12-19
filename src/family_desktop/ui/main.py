@@ -361,8 +361,14 @@ class MainFrame(ttk.Frame):
             husband = marriage["husband"]["name"] if marriage.get("husband") else "?"
             wife = marriage["wife"]["name"] if marriage.get("wife") else "?"
             values.append(f"{marriage['id']} - {husband} & {wife}")
+        prev_value = self.marriage_selector.get()
         self.marriage_selector["values"] = values
-        self.child_combo["values"] = [f"{p['id']} - {p['name']}" for p in self.people_cache]
+        if prev_value not in values:
+            if values:
+                self.marriage_selector.set(values[0])
+            else:
+                self.marriage_selector.set("")
+        self._refresh_child_combo_options(self._current_marriage_id())
         if hasattr(self, "diagram_marriage_combo"):
             self.diagram_marriage_combo["values"] = values
             if values:
@@ -377,11 +383,13 @@ class MainFrame(ttk.Frame):
         self.children_tree.delete(*self.children_tree.get_children())
         marriage_id = self._current_marriage_id()
         if not marriage_id:
+            self._refresh_child_combo_options(None)
             return
         rows = marriages.list_children(marriage_id)
         for row in rows:
             child = row["child"]
             self.children_tree.insert("", "end", iid=row["id"], values=(f"{child['name']} (#{child['id']})",))
+        self._refresh_child_combo_options(marriage_id, rows)
 
     def _add_child(self):
         marriage_id = self._current_marriage_id()
@@ -641,6 +649,36 @@ class MainFrame(ttk.Frame):
             return int(label.split(" - ", 1)[0])
         except ValueError:
             return None
+
+    def _find_marriage(self, marriage_id: int | None) -> dict | None:
+        if not marriage_id:
+            return None
+        return next((m for m in self.marriage_cache if m["id"] == marriage_id), None)
+
+    def _refresh_child_combo_options(self, marriage_id: int | None, children_rows: list[dict] | None = None):
+        if not hasattr(self, "child_combo"):
+            return
+        if not marriage_id:
+            self.child_combo["values"] = []
+            self.child_combo.set("")
+            return
+        used_ids = set(marriages.list_child_ids())
+        children_rows = children_rows or marriages.list_children(marriage_id)
+        used_ids.update({row["child"]["id"] for row in children_rows if row.get("child")})
+        marriage = self._find_marriage(marriage_id)
+        if marriage:
+            for role in ("husband", "wife"):
+                person = marriage.get(role)
+                if person:
+                    used_ids.add(person["id"])
+        candidates = [p for p in self.people_cache if p["id"] not in used_ids]
+        candidates.sort(key=lambda item: (item["name"] or "").lower())
+        values = [f"{p['id']} - {p['name']}" for p in candidates]
+        self.child_combo["values"] = values
+        if values:
+            self.child_combo.set(values[0])
+        else:
+            self.child_combo.set("")
 
     def _refresh_all(self):
         self.refresh_people()

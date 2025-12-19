@@ -91,3 +91,9 @@ def list_children(marriage_id: int) -> list[dict]:
         )
         children = session.scalars(stmt).all()
         return [child.to_dict() for child in children]
+
+
+def list_child_ids() -> list[int]:
+    with get_session() as session:
+        stmt = select(ChildLink.child_id)
+        return list(session.scalars(stmt).all())
